@@ -25,3 +25,15 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Whole-app zoom is a screen-only convenience: always print at 100% */
+@media print {
+  html {
+    zoom: 1 !important;
+  }
+}
+
+/* Keep "full screen height" correct while the whole-app zoom is active */
+.min-h-screen {
+  min-height: calc(var(--app-vh, 1vh) * 100);
+}

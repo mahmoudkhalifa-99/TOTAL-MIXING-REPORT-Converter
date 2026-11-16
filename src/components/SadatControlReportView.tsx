@@ -1053,7 +1053,7 @@ export const SadatControlReportView: React.FC<SadatControlReportViewProps> = ({
           </div>
 
           {/* Scrollable Matrix Table */}
-          <div className={`overflow-x-auto ${isFullscreen ? 'max-h-[calc(100vh-210px)]' : 'max-h-[78vh]'}`}>
+          <div className={`overflow-x-auto ${isFullscreen ? 'max-h-[calc(var(--app-vh,1vh)*100-210px)]' : 'max-h-[calc(var(--app-vh,1vh)*78)]'}`}>
             <table className={`w-full text-right border-separate border-spacing-0 ${tableFontClass}`}>
               <thead className="sticky top-0 z-30 select-none">
                 {/* Sub-header White Reference Row (supledger | batch codes | date) */}

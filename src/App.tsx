@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
+import { AppZoomControl } from './components/AppZoomControl';
 import { Dropzone } from './components/Dropzone';
 import { ExcelGrid } from './components/ExcelGrid';
 import { FeaturesSection } from './components/FeaturesSection';
@@ -276,6 +277,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans" dir="rtl">
       {/* Top Bar */}
+      <AppZoomControl />
       <Header
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenHelp={() => setIsHelpOpen(true)}
