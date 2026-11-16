@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix الكنترول الجديد 2027",
+  "description": "تطبيق متطور لتحويل أي ملف PDF (فواتير، كشوف حسابات، جداول بيانات، مسيرات رواتب) إلى ملفات إكسل Excel منظمة ودقيقة بنقرة واحدة باستخدام الذكاء الاصطناعي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TOTAL MIXING REPORT Converter</title>
+    <meta name="description" content="تطبيق متطور لتحويل أي ملف PDF (فواتير، كشوف حسابات، جداول بيانات، مسيرات رواتب) إلى ملفات إكسل Excel منظمة ودقيقة بنقرة واحدة باستخدام الذكاء الاصطناعي." />
+    <meta property="og:title" content="TOTAL MIXING REPORT Converter" />
+    <meta property="og:description" content="تطبيق متطور لتحويل أي ملف PDF (فواتير، كشوف حسابات، جداول بيانات، مسيرات رواتب) إلى ملفات إكسل Excel منظمة ودقيقة بنقرة واحدة باستخدام الذكاء الاصطناعي." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icon-512.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // Suppress harmless Vite HMR WebSocket connection errors in iframe / proxy environment
+      window.addEventListener('error', function(event) {
+        var msg = (event && event.message) ? String(event.message) : '';
+        var file = (event && event.filename) ? String(event.filename) : '';
+        if (
+          file.includes('@vite/client') ||
+          msg.includes('WebSocket') ||
+          msg.includes('createWebSocketModuleRunnerTransport') ||
+          msg.includes('ws://') ||
+          msg.includes('wss://')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = (event && event.reason) ? (event.reason.message || String(event.reason)) : '';
+        if (
+          reason.includes('WebSocket') ||
+          reason.includes('@vite/client') ||
+          reason.includes('createWebSocketModuleRunnerTransport')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-500 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
