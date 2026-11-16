@@ -1284,6 +1284,166 @@ export async function extractDocumentFromPdfLocal(
   return docDraft;
 }
 
+/**
+ * Detects and parses the Crystal Reports "ConsumptionByFinishedProductList" layout when it is
+ * exported straight to Excel (merged cells, formula banner rows, Ident / Name / Target / Actual columns).
+ * Produces the SAME raw table shape the PDF path builds, so the rest of the pipeline
+ * (code split, classification, Sadat control report, pivot ...) behaves identically for Excel and PDF.
+ */
+function parseCrystalConsumptionMatrix(
+  matrix: any[][],
+  fileName: string
+): { sheet: SheetData; reportDate: string } | null {
+  const cellText = (v: any) => (v === null || v === undefined ? '' : String(v).replace(/\s+/g, ' ').trim());
+  const isNum = (v: any) =>
+    typeof v === 'number' ? Number.isFinite(v) : /^[+-]?[\d,]+(?:\.\d+)?$/.test(cellText(v));
+  const toNum = (v: any) => (typeof v === 'number' ? v : parseFloat(cellText(v).replace(/,/g, '')));
+
+  // 1. Find the header row: contains "Ident" and "Name" plus Target/Actual labels
+  let headerIdx = -1;
+  for (let r = 0; r < Math.min(60, matrix.length); r++) {
+    const texts = (matrix[r] || []).map(cellText).map((t) => t.toLowerCase());
+    if (
+      texts.some((t) => t === 'ident') &&
+      texts.some((t) => t === 'name') &&
+      texts.some((t) => /^(target|actual)\b/.test(t))
+    ) {
+      headerIdx = r;
+      break;
+    }
+  }
+  if (headerIdx === -1) return null;
+
+  const headerTexts = (matrix[headerIdx] || []).map(cellText);
+  const hasTarget = headerTexts.some((t) => /^target/i.test(t));
+  const hasActual = headerTexts.some((t) => /^actual/i.test(t));
+
+  // 2. Report date: prefer the "To:" date, then any date in the first rows, then the printed footer date
+  let reportDate = '';
+  const topText = matrix.slice(0, headerIdx).flat().map(cellText).filter(Boolean);
+  const toLine = topText.find((t) => /^to\s*:/i.test(t));
+  const dateRe = /(\d{1,2}\/\d{1,2}\/\d{2,4})/;
+  if (toLine) reportDate = (toLine.match(dateRe) || [])[1] || '';
+  if (!reportDate) {
+    for (const t of topText) {
+      const m = t.match(dateRe);
+      if (m) {
+        reportDate = m[1];
+        break;
+      }
+    }
+  }
+  if (!reportDate) {
+    for (let r = matrix.length - 1; r >= Math.max(0, matrix.length - 10); r--) {
+      const m = (matrix[r] || []).map(cellText).join(' ').match(dateRe);
+      if (m) {
+        reportDate = m[1];
+        break;
+      }
+    }
+  }
+
+  // 3. Walk the body
+  const rows: (string | number)[][] = [];
+  let totalsRow: (string | number)[] | undefined;
+  let currentFormula = '';
+  let currentSupledger = '';
+  let anySupledger = false;
+
+  for (let r = headerIdx + 1; r < matrix.length; r++) {
+    const row = matrix[r] || [];
+    // Non-empty cells in column order (merged-cell exports shift columns, so order matters, not position)
+    const cells = row
+      .map((c) => ({ text: cellText(c), isNumber: typeof c === 'number' }))
+      .filter((c) => c.text !== '');
+    if (cells.length === 0) continue;
+
+    const first = cells[0];
+    // Page footer: "16/11/2026 08:12:39" / "Page 1 of 1"
+    if (
+      cells.every((c) => /^\d{1,2}\/\d{1,2}\/\d{2,4}(\s+[\d:]+)?$|^page\s+\d+/i.test(c.text))
+    ) {
+      continue;
+    }
+
+    // Grand total: "Total [kg]" followed by numeric Target / Actual
+    if (!first.isNumber && /^total\b/i.test(first.text)) {
+      const w = cells.slice(1).filter((c) => isNum(c.text)).map((c) => toNum(c.text));
+      if (w.length > 0) {
+        const vals = hasTarget && hasActual && w.length >= 2 ? [w[0], w[1]] : [w[w.length - 1]];
+        totalsRow = ['الإجمالي العام', '', '', '', ...vals.map((v) => String(v))];
+      }
+      continue;
+    }
+
+    // Per-formula subtotal rows start directly with a number (no item name)
+    if (first.isNumber) continue;
+
+    const shortName = first.text;
+    const longName = cells[1] ? cells[1].text : '';
+    // Weights = numeric-typed cells after the name cells (a bare "1287242" code is a STRING cell, so it is never mistaken for a weight)
+    const weights = cells.slice(2).filter((c) => c.isNumber || isNum(c.text)).map((c) => toNum(c.text));
+
+    // Formula banner: short name + "(name) 12345" with no weights
+    if (weights.length === 0) {
+      const fromLong = extractSupledgerAndCleanFormula(longName || shortName);
+      const fromShort = extractSupledgerAndCleanFormula(shortName);
+      currentFormula = fromLong.cleanName || fromShort.cleanName || shortName;
+      currentSupledger = fromLong.supledger || fromShort.supledger || '';
+      if (currentSupledger) anySupledger = true;
+      continue;
+    }
+
+    // Ingredient row
+    let target: number | '' = '';
+    let actual: number | '' = '';
+    if (weights.length >= 2) {
+      target = weights[0];
+      actual = weights[1];
+    } else if (hasActual && !hasTarget) {
+      actual = weights[0];
+    } else {
+      target = weights[0];
+    }
+    // Split "(corn 7.5%) 11342" / "1287242" / "Lysine HCL 13556" into a JDE code, and keep the short name as the item name
+    let itemCode = '';
+    if (/^\d{4,}$/.test(longName)) {
+      itemCode = longName;
+    } else {
+      const parsed = extractCodeFromValue(longName);
+      if (parsed) itemCode = parsed.code;
+    }
+    const itemName = shortName || (extractCodeFromValue(longName)?.cleanText ?? longName.replace(/^\(|\)$/g, ''));
+
+    const out: (string | number)[] = [
+      currentFormula || fileName.replace(/\.[^/.]+$/, ''),
+      currentSupledger,
+      itemCode,
+      itemName,
+    ];
+    if (hasTarget) out.push(target === '' ? '' : String(target));
+    if (hasActual) out.push(actual === '' ? '' : String(actual));
+    rows.push(out);
+  }
+
+  if (rows.length === 0) return null;
+
+  // Same canonical header names the PDF path produces, so every downstream step treats Excel and PDF identically
+  const headers = ['Finished_Product', 'Supledger', 'Ingredient_Code', 'Ingredient_Name'];
+  if (hasTarget) headers.push('Target [kg]');
+  if (hasActual) headers.push('Actual [kg]');
+
+  const sheet: SheetData = {
+    sheetName: 'Mixing_Report',
+    description: `جدول مستخرج محلياً من ${fileName}`,
+    isRtl: false,
+    headers,
+    rows,
+    ...(totalsRow ? { totalsRow } : {}),
+  };
+  return { sheet, reportDate };
+}
+
 export async function extractDocumentFromSpreadsheetLocal(
   file: File,
   options: ConversionOptions,
@@ -1321,6 +1481,15 @@ export async function extractDocumentFromSpreadsheetLocal(
   for (const sheetName of wb.SheetNames) {
     const ws = wb.Sheets[sheetName];
     const rawMatrix: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    // Crystal Reports "ConsumptionByFinishedProductList" exported to Excel -> same pipeline as the PDF
+    const crystal = parseCrystalConsumptionMatrix(rawMatrix, file.name);
+    if (crystal) {
+      if (crystal.reportDate && !detectedReportDate) detectedReportDate = crystal.reportDate;
+      docDraft.detectedType = 'mixing_report';
+      sheets.push(postProcessSheet(crystal.sheet, docDraft));
+      continue;
+    }
     const nonEmptyRows = rawMatrix.filter(
       (r) => Array.isArray(r) && r.some((cell) => String(cell ?? '').trim() !== '')
     );
