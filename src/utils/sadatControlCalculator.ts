@@ -131,7 +131,7 @@ export function findIngredientNameColumnIndex(
   return formulaColIdx !== -1 ? formulaColIdx : 0;
 }
 
-function findIngredientCodeColumns(headers: string[], rows: any[][]): number[] {
+export function findIngredientCodeColumns(headers: string[], rows: any[][]): number[] {
   const primary: number[] = [];
   const secondary: number[] = [];
 

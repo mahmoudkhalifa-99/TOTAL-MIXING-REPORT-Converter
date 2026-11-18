@@ -807,6 +807,8 @@ export interface DailySpendExportRow {
   ar: string;
   qty: number;
   hasData: boolean;
+  code: string;
+  driveCode: string;
 }
 
 export interface DailySpendStyledExportParams {
@@ -818,7 +820,9 @@ export interface DailySpendStyledExportParams {
   fileName: string;
 }
 
-/** Styled Excel export that mirrors the daily "الصرف اليومي للكنترول" sheet (English | quantity | Arabic). */
+const toCodeCell = (v: string): string | number => (v && /^\d+$/.test(v.trim()) ? Number(v.trim()) : v || '');
+
+/** Styled Excel export that mirrors the daily "الصرف اليومي للكنترول" sheet (English | codes | quantity | Arabic). */
 export async function exportDailySpendStyledExcel({
   rows,
   total,
@@ -834,39 +838,49 @@ export async function exportDailySpendStyledExcel({
   const ws = wb.addWorksheet('الصرف_اليومي', {
     views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
   });
-  ws.columns = [{ width: 32 }, { width: 22 }, { width: 28 }];
+  ws.columns = [{ width: 34 }, { width: 16 }, { width: 14 }, { width: 24 }, { width: 28 }];
+  ws.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
 
-  const headerRow = ws.addRow([title, qtyHeader, 'الصنف']);
+  const headerRow = ws.addRow([title, 'كود الصنف', 'كود درايف', qtyHeader, 'الصنف']);
   headerRow.height = 30;
   headerRow.eachCell((cell) => {
     cell.fill = solidFill('FFFFFF00');
     cell.font = { name: 'Cairo', size: 12, bold: true, color: { argb: 'FF000000' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = makeBorder('medium', 'medium', 'medium', 'medium', 'FF000000');
   });
 
   const numFmt = '0.########';
   rows.forEach((r) => {
     const val = r.hasData ? Number(r.qty.toFixed(decimals)) : '-';
-    const excelRow = ws.addRow([r.en, val, r.ar]);
+    const excelRow = ws.addRow([r.en, toCodeCell(r.code), toCodeCell(r.driveCode), val, r.ar]);
     excelRow.height = 22;
     excelRow.eachCell((cell, colNumber) => {
-      cell.fill = solidFill(colNumber === 2 ? 'FFFFFF00' : colNumber === 1 ? 'FFFDEBD0' : 'FFFFFFFF');
+      cell.fill = solidFill(colNumber === 4 ? 'FFFFFF00' : colNumber === 1 ? 'FFFDEBD0' : 'FFFFFFFF');
       cell.font = { name: 'Cairo', size: 11, bold: true, color: { argb: 'FF000000' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = makeBorder('thin', 'thin', 'thin', 'thin', 'FF000000');
-      if (colNumber === 2 && typeof val === 'number') cell.numFmt = numFmt;
+      if (colNumber === 4 && typeof val === 'number') cell.numFmt = numFmt;
     });
   });
+  ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
-  const totalRow = ws.addRow(['الإجمالي', Number(total.toFixed(decimals)), '']);
+  const totalRow = ws.addRow(['الإجمالي', '', '', Number(total.toFixed(decimals)), '']);
   totalRow.height = 26;
   totalRow.eachCell((cell, colNumber) => {
     cell.fill = solidFill('FFDCFCE7');
     cell.font = { name: 'Cairo', size: 12, bold: true, color: { argb: 'FF000000' } };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
     cell.border = makeBorder('medium', 'medium', 'medium', 'medium', 'FF000000');
-    if (colNumber === 2) cell.numFmt = numFmt;
+    if (colNumber === 4) cell.numFmt = numFmt;
   });
 
   await downloadWorkbook(wb, fileName);

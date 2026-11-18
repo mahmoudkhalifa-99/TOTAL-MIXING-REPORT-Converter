@@ -37,3 +37,35 @@
 .min-h-screen {
   min-height: calc(var(--app-vh, 1vh) * 100);
 }
+
+/* Print only the daily-spend report (A4, colours kept) */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  body.print-daily-spend * {
+    visibility: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.print-daily-spend #daily-spend-report,
+  body.print-daily-spend #daily-spend-report * {
+    visibility: visible;
+  }
+  body.print-daily-spend #daily-spend-report {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    overflow: visible;
+    font-size: 11pt;
+  }
+  body.print-daily-spend #daily-spend-report tr {
+    break-inside: avoid;
+  }
+}

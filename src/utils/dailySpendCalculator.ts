@@ -3,9 +3,16 @@ import { findItemTypeColumnIndex, findFormulaColumnIndex } from './itemClassifie
 import { detectWeightColumns, parseNumericCell } from './categoryTotals';
 import {
   findIngredientNameColumnIndex,
+  findIngredientCodeColumns,
   isSummaryOrTotalRow,
   extractDateFromText,
 } from './sadatControlCalculator';
+import {
+  MASTER_DRIVE_CODES_CATALOG,
+  lookupDriveCatalogInfo,
+  normalizeItemText,
+} from './driveCodesCatalog';
+import { loadStoredDriveOverrides, loadStoredCustomCatalog } from './controlPivotCalculator';
 
 /**
  * The fixed list of items shown in the "الصرف اليومي للكنترول" daily sheet, in its exact order.
@@ -18,6 +25,44 @@ export interface DailySpendItemDef {
   en: string;
   ar: string;
   aliases: string[];
+  /** Optional manual item (JDE) code / drive code typed by the user for a custom item */
+  code?: string;
+  driveCode?: string;
+  custom?: boolean;
+}
+
+/** Items the user added himself (persisted in the browser) */
+export interface DailySpendCustomItem {
+  en: string;
+  ar: string;
+  code?: string;
+  driveCode?: string;
+}
+
+/** Per-line manual edits of the codes (key = English name of the line) */
+export type DailySpendCodeOverrides = Record<string, { code?: string; driveCode?: string }>;
+
+export const DAILY_SPEND_CUSTOM_ITEMS_KEY = 'daily_spend_custom_items_v1';
+export const DAILY_SPEND_CODE_OVERRIDES_KEY = 'daily_spend_code_overrides_v1';
+
+export function loadDailySpendCustomItems(): DailySpendCustomItem[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DAILY_SPEND_CUSTOM_ITEMS_KEY) : null;
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x.en === 'string' && x.en.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadDailySpendCodeOverrides(): DailySpendCodeOverrides {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DAILY_SPEND_CODE_OVERRIDES_KEY) : null;
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export const DAILY_SPEND_ITEMS: DailySpendItemDef[] = [
@@ -64,6 +109,10 @@ export interface DailySpendRow {
   ar: string;
   qty: number;
   hasData: boolean;
+  /** Item (JDE) code and Drive code, resolved from: manual edit > custom item > file > catalog */
+  code: string;
+  driveCode: string;
+  custom: boolean;
 }
 
 export interface DailySpendReport {
@@ -81,18 +130,38 @@ export function calculateDailySpend(
   sheet: SheetData,
   metric: 'actual' | 'target',
   divisor: number,
-  documentTitle?: string
+  documentTitle?: string,
+  customItems: DailySpendCustomItem[] = [],
+  codeOverrides: DailySpendCodeOverrides = {}
 ): DailySpendReport {
-  const rowsOut: DailySpendRow[] = DAILY_SPEND_ITEMS.map((d, i) => ({
+  const allItems: DailySpendItemDef[] = [
+    ...DAILY_SPEND_ITEMS,
+    ...customItems
+      .filter((c) => c.en && c.en.trim())
+      .map<DailySpendItemDef>((c) => ({
+        en: c.en.trim(),
+        ar: (c.ar || '').trim(),
+        aliases: [c.en.trim()],
+        code: c.code,
+        driveCode: c.driveCode,
+        custom: true,
+      })),
+  ];
+
+  const rowsOut: DailySpendRow[] = allItems.map((d, i) => ({
     index: i,
     en: d.en,
     ar: d.ar,
     qty: 0,
     hasData: false,
+    code: '',
+    driveCode: '',
+    custom: !!d.custom,
   }));
+  const fileCodes: string[] = allItems.map(() => '');
 
   const aliasMap = new Map<string, number>();
-  DAILY_SPEND_ITEMS.forEach((d, i) => {
+  allItems.forEach((d, i) => {
     d.aliases.forEach((a) => {
       const k = compact(a);
       if (k && !aliasMap.has(k)) aliasMap.set(k, i);
@@ -112,6 +181,7 @@ export function calculateDailySpend(
       ? targetColIndex
       : actualColIndex;
 
+  const codeColIndices = findIngredientCodeColumns(sheet.headers, sheet.rows);
   const others = new Map<string, number>();
   let fileTotal = 0;
 
@@ -127,10 +197,49 @@ export function calculateDailySpend(
     if (idx !== undefined) {
       rowsOut[idx].qty += qty;
       rowsOut[idx].hasData = true;
+      if (!fileCodes[idx]) {
+        for (const cIdx of codeColIndices) {
+          const v = (row[cIdx] ?? '').toString().trim().replace(/,/g, '');
+          if (/^\d{3,}$/.test(v)) {
+            fileCodes[idx] = v;
+            break;
+          }
+        }
+      }
     } else {
       others.set(name, (others.get(name) ?? 0) + qty);
     }
   }
+
+  // Resolve item (JDE) code + Drive code for every line
+  const driveOverrides = loadStoredDriveOverrides();
+  const customCatalog = loadStoredCustomCatalog();
+  const combinedCatalog = [...customCatalog, ...MASTER_DRIVE_CODES_CATALOG];
+  rowsOut.forEach((r, i) => {
+    const def = allItems[i];
+    const manual = codeOverrides[def.en] || {};
+
+    let autoDrive = '';
+    let autoJde = fileCodes[i] || '';
+    // Variant lines such as "Corn B" fall back to the base item's codes when they have none of their own
+    for (const nameToTry of [def.en, def.en.replace(/\s+b$/i, ''), def.ar]) {
+      if (!nameToTry) continue;
+      const info = lookupDriveCatalogInfo(nameToTry, autoJde, driveOverrides, customCatalog);
+      if (info.driveCode) {
+        autoDrive = info.driveCode;
+        if (!autoJde) {
+          const hit =
+            combinedCatalog.find((e) => normalizeItemText(e.name) === normalizeItemText(info.fullName)) ||
+            combinedCatalog.find((e) => e.driveCode === info.driveCode);
+          if (hit) autoJde = hit.jdeCode || '';
+        }
+        break;
+      }
+    }
+
+    r.code = (manual.code ?? def.code ?? autoJde ?? '').toString().trim();
+    r.driveCode = (manual.driveCode ?? def.driveCode ?? autoDrive ?? '').toString().trim();
+  });
 
   const otherItems = Array.from(others.entries())
     .map(([name, qty]) => ({ name, qty }))
