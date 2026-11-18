@@ -61,7 +61,7 @@ export interface SadatControlReport {
 export const SADAT_BATCH_CODES_STORAGE_KEY = 'sadat_control_batch_codes_v1';
 export const SADAT_META_STORAGE_KEY = 'sadat_control_meta_v1';
 
-function isSummaryOrTotalRow(row: any[]): boolean {
+export function isSummaryOrTotalRow(row: any[]): boolean {
   const joined = row.map((c) => (c ?? '').toString().trim()).join(' ');
   return (
     joined.includes('إجمالي السمك') ||
@@ -91,7 +91,7 @@ function isCodeOrIdHeader(h: string): boolean {
   );
 }
 
-function findIngredientNameColumnIndex(
+export function findIngredientNameColumnIndex(
   headers: string[],
   formulaColIdx: number,
   itemTypeColIdx: number
@@ -243,7 +243,7 @@ function resolveBilingualName(rawName: string, jdeCode: string): string {
   return rawName;
 }
 
-function extractDateFromText(text?: string): string {
+export function extractDateFromText(text?: string): string {
   if (text) {
     const match = text.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
     if (match) return match[1].replace(/-/g, '/');

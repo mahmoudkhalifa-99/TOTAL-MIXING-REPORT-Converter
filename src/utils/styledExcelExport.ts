@@ -801,3 +801,73 @@ export async function exportDriveSummaryStyledExcel({
   await downloadWorkbook(wb, `${baseName}_ملخص_الدرايف.xlsx`);
 }
 
+
+export interface DailySpendExportRow {
+  en: string;
+  ar: string;
+  qty: number;
+  hasData: boolean;
+}
+
+export interface DailySpendStyledExportParams {
+  rows: DailySpendExportRow[];
+  total: number;
+  decimals: number;
+  title: string;
+  qtyHeader: string;
+  fileName: string;
+}
+
+/** Styled Excel export that mirrors the daily "الصرف اليومي للكنترول" sheet (English | quantity | Arabic). */
+export async function exportDailySpendStyledExcel({
+  rows,
+  total,
+  decimals,
+  title,
+  qtyHeader,
+  fileName,
+}: DailySpendStyledExportParams): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'TOTAL MIXING REPORT Converter';
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet('الصرف_اليومي', {
+    views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }],
+  });
+  ws.columns = [{ width: 32 }, { width: 22 }, { width: 28 }];
+
+  const headerRow = ws.addRow([title, qtyHeader, 'الصنف']);
+  headerRow.height = 30;
+  headerRow.eachCell((cell) => {
+    cell.fill = solidFill('FFFFFF00');
+    cell.font = { name: 'Cairo', size: 12, bold: true, color: { argb: 'FF000000' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = makeBorder('medium', 'medium', 'medium', 'medium', 'FF000000');
+  });
+
+  const numFmt = '0.########';
+  rows.forEach((r) => {
+    const val = r.hasData ? Number(r.qty.toFixed(decimals)) : '-';
+    const excelRow = ws.addRow([r.en, val, r.ar]);
+    excelRow.height = 22;
+    excelRow.eachCell((cell, colNumber) => {
+      cell.fill = solidFill(colNumber === 2 ? 'FFFFFF00' : colNumber === 1 ? 'FFFDEBD0' : 'FFFFFFFF');
+      cell.font = { name: 'Cairo', size: 11, bold: true, color: { argb: 'FF000000' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = makeBorder('thin', 'thin', 'thin', 'thin', 'FF000000');
+      if (colNumber === 2 && typeof val === 'number') cell.numFmt = numFmt;
+    });
+  });
+
+  const totalRow = ws.addRow(['الإجمالي', Number(total.toFixed(decimals)), '']);
+  totalRow.height = 26;
+  totalRow.eachCell((cell, colNumber) => {
+    cell.fill = solidFill('FFDCFCE7');
+    cell.font = { name: 'Cairo', size: 12, bold: true, color: { argb: 'FF000000' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = makeBorder('medium', 'medium', 'medium', 'medium', 'FF000000');
+    if (colNumber === 2) cell.numFmt = numFmt;
+  });
+
+  await downloadWorkbook(wb, fileName);
+}

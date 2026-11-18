@@ -50,6 +50,7 @@ import { CategoryTotalsBar } from './CategoryTotalsBar';
 import { ControlPivotView } from './ControlPivotView';
 import { SadatControlReportView } from './SadatControlReportView';
 import { DriveSummaryView } from './DriveSummaryView';
+import { DailySpendView } from './DailySpendView';
 import {
   calculateCategoryTotals,
   formatWeight,
@@ -115,7 +116,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
   // Tab view: 'grid' or 'split' (showing PDF alongside table)
   const [viewMode, setViewMode] = useState<'grid' | 'split'>('grid');
   // Page view: 'details' (detailed spreadsheet), 'control_pivot' (by type), 'sadat_control' (formula matrix), or 'drive_summary' (4-col drive code summary)
-  const [activePage, setActivePage] = useState<'details' | 'control_pivot' | 'sadat_control' | 'drive_summary'>('details');
+  const [activePage, setActivePage] = useState<'details' | 'control_pivot' | 'sadat_control' | 'drive_summary' | 'daily_spend'>('details');
   // Column reordering UI & drag state
   const [showColumnOrderBar, setShowColumnOrderBar] = useState(false);
   const [draggedColIndex, setDraggedColIndex] = useState<number | null>(null);
@@ -748,6 +749,18 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
             <ListOrdered className="w-3.5 h-3.5" />
             <span>ملخص الأصناف (كود درايف)</span>
           </button>
+
+          <button
+            onClick={() => setActivePage('daily_spend')}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+              activePage === 'daily_spend'
+                ? 'bg-[#ffff00] text-slate-950 border-slate-950 shadow-xs'
+                : 'bg-white text-slate-800 border-slate-200 hover:bg-yellow-50 hover:border-yellow-400'
+            }`}
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>الصرف اليومي (أصناف مختصرة)</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
@@ -831,6 +844,12 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
           onIncreaseFont={() => updateFontStep(fontStepIndex + 1)}
           onDecreaseFont={() => updateFontStep(fontStepIndex - 1)}
           onResetFont={() => updateFontStep(DEFAULT_FONT_STEP_INDEX)}
+        />
+      ) : activePage === 'daily_spend' ? (
+        <DailySpendView
+          sheet={currentSheet}
+          fileName={fileName}
+          documentTitle={document.documentTitle}
         />
       ) : activePage === 'drive_summary' ? (
         <DriveSummaryView
