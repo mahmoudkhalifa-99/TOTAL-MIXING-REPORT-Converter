@@ -23,6 +23,7 @@ import {
   loadDailySpendCustomItems,
   loadDailySpendCodeOverrides,
 } from '../utils/dailySpendCalculator';
+import { calculateSadatControlReport } from '../utils/sadatControlCalculator';
 import { exportDailySpendStyledExcel } from '../utils/styledExcelExport';
 import { exportToCsv, copyTableToClipboard } from '../utils/excelExport';
 
@@ -128,6 +129,58 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
     [sheet, metric, divisor, documentTitle, customItems, codeOverrides]
   );
 
+  // Category totals (fattening / fish / duck / pets) for the WHOLE file, summed automatically by formula type.
+  // They are shown AFTER deducting water, and WITHOUT any "Cleaning" group (e.g. Cleaning Aqua).
+  const categoryInfo = useMemo(() => {
+    try {
+      const rep = calculateSadatControlReport(sheet, metric, divisor, documentTitle);
+      const isCleaning = (label: string) => /clean|تنظيف/i.test(label || '');
+      const nonWaterRows = rep.rows.filter((r) => !r.isWater);
+
+      const sumFormulas = (formulas: { key: string; label: string }[]) =>
+        formulas
+          .filter((f) => !isCleaning(f.label))
+          .reduce((acc, f) => acc + nonWaterRows.reduce((a, r) => a + (r.formulaValues[f.key] || 0), 0), 0);
+
+      const allFormulas = [
+        ...rep.fatteningFormulas,
+        ...rep.fishFormulas,
+        ...rep.duckFormulas,
+        ...rep.petsFormulas,
+      ];
+      const waterDeducted = allFormulas
+        .filter((f) => !isCleaning(f.label))
+        .reduce(
+          (acc, f) =>
+            acc + rep.rows.filter((r) => r.isWater).reduce((a, r) => a + (r.formulaValues[f.key] || 0), 0),
+          0
+        );
+      const cleaningExcluded = allFormulas
+        .filter((f) => isCleaning(f.label))
+        .reduce((acc, f) => acc + rep.rows.reduce((a, r) => a + (r.formulaValues[f.key] || 0), 0), 0);
+
+      return {
+        totals: [
+          { label: 'اجمالى التسمين', value: sumFormulas(rep.fatteningFormulas) },
+          { label: 'اجمالى السمك', value: sumFormulas(rep.fishFormulas) },
+          { label: 'اجمالى البط', value: sumFormulas(rep.duckFormulas) },
+          { label: 'اجمالى الحيوانات الاليفة', value: sumFormulas(rep.petsFormulas) },
+        ],
+        waterDeducted,
+        cleaningExcluded,
+      };
+    } catch {
+      return { totals: [], waterDeducted: 0, cleaningExcluded: 0 };
+    }
+  }, [sheet, metric, divisor, documentTitle]);
+  const categoryTotals = categoryInfo.totals;
+
+  const catDecimals = unit === 'ton' ? 3 : 2;
+  const fmtCat = (n: number) =>
+    n === 0
+      ? '-'
+      : n.toLocaleString('en-US', { minimumFractionDigits: catDecimals, maximumFractionDigits: catDecimals });
+
   const year = (report.detectedDate.match(/(\d{4})/) || [])[1] || new Date().getFullYear().toString();
   const title = `الصرف اليومي ${year} للكنترول`;
   const qtyHeader = `الكمية المصروفة (${unitLabel})`;
@@ -149,10 +202,23 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
     totalsRow: ['الإجمالي', '', '', Number(report.total.toFixed(decimals)), ''],
   });
 
+  const rowsWithCategories = (): SheetData => {
+    const base = asSheet();
+    if (categoryTotals.length === 0) return base;
+    return {
+      ...base,
+      rows: [
+        ...base.rows,
+        ['', '', '', '', ''],
+        ...categoryTotals.map((c) => [c.label, '', '', Number(c.value.toFixed(catDecimals)), '']),
+      ],
+    };
+  };
+
   const baseName = (fileName || 'daily_spend').replace(/\.[^/.]+$/, '');
 
   const handleCopy = async () => {
-    const ok = await copyTableToClipboard(asSheet());
+    const ok = await copyTableToClipboard(rowsWithCategories());
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
@@ -276,6 +342,8 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
                 title,
                 qtyHeader,
                 fileName: `${baseName}_daily_spend`,
+                categoryTotals,
+                categoryDecimals: catDecimals,
               })
             }
             className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
@@ -283,7 +351,7 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>تصدير (.xlsx)</span>
           </button>
-          <button type="button" onClick={() => exportToCsv(asSheet(), `${baseName}_daily_spend.csv`)} className={actionBtn}>
+          <button type="button" onClick={() => exportToCsv(rowsWithCategories(), `${baseName}_daily_spend.csv`)} className={actionBtn}>
             <Download className="w-3.5 h-3.5" />
             <span>CSV</span>
           </button>
@@ -452,6 +520,39 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
             </tr>
           </tbody>
         </table>
+
+        {categoryTotals.length > 0 && (
+          <table className="w-full border-collapse table-fixed min-w-[640px] mt-4 border-t-2 border-slate-900">
+            <colgroup>
+              <col style={{ width: '50%' }} />
+              <col style={{ width: '50%' }} />
+            </colgroup>
+            <tbody>
+              {categoryTotals.map((c) => (
+                <tr key={c.label} className="h-11">
+                  <td className="border border-slate-900 bg-[#00ffff] px-3 text-center text-sm font-extrabold text-slate-950">
+                    {c.label}
+                  </td>
+                  <td
+                    className="border border-slate-900 bg-white px-3 text-center font-mono tabular-nums text-base font-extrabold text-slate-950"
+                    dir="ltr"
+                  >
+                    {fmtCat(c.value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {categoryTotals.length > 0 && (
+          <p className="px-3 py-1.5 text-[11px] text-slate-600 border-t border-slate-300" dir="rtl">
+            الإجماليات بعد خصم الماء ({fmtCat(categoryInfo.waterDeducted)} {unitLabel})
+            {categoryInfo.cleaningExcluded > 0
+              ? ` ودون مجموعة Cleaning (${fmtCat(categoryInfo.cleaningExcluded)} ${unitLabel})`
+              : ''}
+            .
+          </p>
+        )}
       </div>
 
       <p className="max-w-4xl mx-auto text-[11px] text-slate-500 flex items-center gap-1 print:hidden">

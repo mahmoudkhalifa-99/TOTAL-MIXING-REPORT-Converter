@@ -15,7 +15,7 @@ export function classifyFormulaItemType(formulaText: any): ItemType {
   if (!text) return 'اليف';
 
   // 1. Tilapia rule -> سمك
-  if (/tilapia|بلطي|أسماك|سمك/i.test(text)) {
+  if (/tilapia|aqua|\bfish\b|بلطي|أسماك|سمك/i.test(text)) {
     return 'سمك';
   }
 

@@ -287,6 +287,25 @@ function isLikelyFormulaGroupLine(line: PdfLine): boolean {
   return false;
 }
 
+/**
+ * A plain group title that carries NO formula code, e.g. "Cleaning Aqua".
+ * It is only trusted when it comes right after the table header or a group subtotal
+ * (see `expectBanner` in the mixing loop), because wrapped item names look the same in isolation.
+ */
+function isPlainGroupTitleCandidate(line: PdfLine): boolean {
+  const joined = line.chunks.map((c) => c.text).join(' ').trim();
+  if (!joined || joined.length < 3 || !/[A-Za-z\u0600-\u06FF]/.test(joined)) return false;
+  if (line.chunks.some((c) => hasDecimalWeight(c.text))) return false;
+  if (line.chunks.length > 3) return false;
+  if (/إجمالي|الاجمالي|المجموع|\b(?:sub\s*-?\s*total|subtotal|grand\s*total|total)\b/i.test(joined)) return false;
+  // page footer / header chrome such as "23/11/2026 08:03:46 Page 5 of 5"
+  if (/\bpage\b|صفحة|\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}\/\d{1,2}\/\d{2,4}/i.test(joined)) return false;
+  if (looksLikeItemNameFragment(joined)) return false;
+  // an item code in the line means it is an ingredient row, not a title
+  if (/\b\d{4,}\b/.test(joined)) return false;
+  return true;
+}
+
 function isLikelySubtotalRow(cells: string[]): boolean {
   const nonEmpty = cells.map((c) => c.trim()).filter(Boolean);
   if (nonEmpty.length === 0) return true;
@@ -1081,11 +1100,16 @@ export async function extractDocumentFromPdfLocal(
     let anySupledger = false;
     let justSawFormulaHeader = false;
     let formulaHeaderPageNum = -1;
+    // true at the start of the table and right after a group subtotal: the next text-only line is a group title
+    let expectBanner = true;
     const rowFormulas: string[] = [];
     const rowSupledgers: string[] = [];
 
     for (const line of bodyLines) {
-      if (isLikelyFormulaGroupLine(line)) {
+      const isCodedBanner = isLikelyFormulaGroupLine(line);
+      const isPlainTitle = !isCodedBanner && expectBanner && isPlainGroupTitleCandidate(line);
+      if (isCodedBanner || isPlainTitle) {
+        expectBanner = false;
         const joined = line.chunks.map((c) => c.text).join(' ').trim();
         const parsed = extractSupledgerAndCleanFormula(joined);
         if (parsed.cleanName) {
@@ -1103,6 +1127,11 @@ export async function extractDocumentFromPdfLocal(
       // Skip subtotal / group footer summary lines so ingredient weights are never double-counted
       if (isLikelySubtotalRow(aligned)) {
         justSawFormulaHeader = false;
+        // Only a real group subtotal (numbers on the line) opens a new group; blank/decorative lines do not
+        const subtotalJoined = aligned.join(' ');
+        expectBanner =
+          aligned.some((c) => hasDecimalWeight(c)) &&
+          !/total\s*\[|grand total|الإجمالي/i.test(subtotalJoined);
         const joinedLower = aligned.join(' ').toLowerCase();
         if (
           joinedLower.includes('grand total') ||
@@ -1166,6 +1195,7 @@ export async function extractDocumentFromPdfLocal(
       }
 
       justSawFormulaHeader = false;
+      expectBanner = false;
       rawRows.push(aligned);
       rowFormulas.push(currentFormula);
       rowSupledgers.push(currentSupledger);

@@ -818,6 +818,9 @@ export interface DailySpendStyledExportParams {
   title: string;
   qtyHeader: string;
   fileName: string;
+  /** Optional block under the table: totals of fattening / fish / duck / pets */
+  categoryTotals?: { label: string; value: number }[];
+  categoryDecimals?: number;
 }
 
 const toCodeCell = (v: string): string | number => (v && /^\d+$/.test(v.trim()) ? Number(v.trim()) : v || '');
@@ -830,6 +833,8 @@ export async function exportDailySpendStyledExcel({
   title,
   qtyHeader,
   fileName,
+  categoryTotals = [],
+  categoryDecimals = 3,
 }: DailySpendStyledExportParams): Promise<void> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'TOTAL MIXING REPORT Converter';
@@ -882,6 +887,21 @@ export async function exportDailySpendStyledExcel({
     cell.border = makeBorder('medium', 'medium', 'medium', 'medium', 'FF000000');
     if (colNumber === 4) cell.numFmt = numFmt;
   });
+
+  if (categoryTotals.length > 0) {
+    ws.addRow([]);
+    categoryTotals.forEach((c) => {
+      const row = ws.addRow([c.label, '', '', c.value === 0 ? '-' : Number(c.value.toFixed(categoryDecimals)), '']);
+      row.height = 24;
+      row.eachCell((cell, colNumber) => {
+        cell.fill = solidFill(colNumber === 1 ? 'FF00FFFF' : 'FFFFFFFF');
+        cell.font = { name: 'Cairo', size: 12, bold: true, color: { argb: 'FF000000' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = makeBorder('thin', 'thin', 'thin', 'thin', 'FF000000');
+        if (colNumber === 4 && typeof cell.value === 'number') cell.numFmt = '0.000';
+      });
+    });
+  }
 
   await downloadWorkbook(wb, fileName);
 }
