@@ -995,6 +995,18 @@ export const SadatControlReportView: React.FC<SadatControlReportViewProps> = ({
             <span className="text-[11px] text-slate-600">{displayUnit}</span>
           </div>
         )}
+        {report.cleaningTotal > 0 && (
+          <div
+            className="px-3 py-1.5 rounded-lg border border-zinc-400 bg-zinc-100 text-slate-900 font-bold flex items-center gap-1.5"
+            title={`مجموعات Cleaning (${report.cleaningFormulas.map((f) => f.label).join('، ')}) مصنفة مستقلة وغير داخلة في الإجمالي العام`}
+          >
+            <span>🧹 Cleaning (خارج الإجمالي):</span>
+            <span className="font-mono tabular-nums" dir="ltr">
+              {report.cleaningTotal.toFixed(grandTotalDecimals)}
+            </span>
+            <span className="text-[11px] text-slate-600">{displayUnit}</span>
+          </div>
+        )}
         <div className="px-3 py-1.5 rounded-lg border border-emerald-400 bg-[#d9ead3] text-emerald-950 font-extrabold flex items-center gap-1.5">
           <span>⭐ الإجمالي العام:</span>
           <span className="font-mono tabular-nums" dir="ltr">

@@ -482,6 +482,9 @@ export const ControlPivotView: React.FC<ControlPivotViewProps> = ({
             </h4>
             <p className="text-xs text-slate-500">
               إجمالي كل صنف في عمود نوعه مع استكمال كود الدريف تلقائياً ({matchedCount} من {pivot.rows.length} صنف · الوحدة: {displayUnitLabel})
+              {(pivot.cleaningTotal ?? 0) > 0 && (
+                <> · Cleaning مصنّف مستقل وغير داخل في الإجماليات: {(pivot.cleaningTotal ?? 0).toFixed(3)} {displayUnitLabel}</>
+              )}
             </p>
           </div>
         </div>

@@ -4,6 +4,7 @@ import {
   findFormulaColumnIndex,
   classifyFormulaItemType,
   ItemType,
+  isCleaningName,
 } from './itemClassifier';
 import { detectWeightColumns, parseNumericCell } from './categoryTotals';
 import { extractCodeFromValue } from './codeSplitter';
@@ -47,6 +48,9 @@ export interface SadatControlReport {
   fishFormulas: SadatFormulaColumn[];      // سمك
   duckFormulas: SadatFormulaColumn[];      // بط
   petsFormulas: SadatFormulaColumn[];      // اليف
+  /** Cleaning groups (e.g. "Cleaning", "Cleaning Aqua"): kept OUT of the matrix and the grand totals */
+  cleaningFormulas: SadatFormulaColumn[];
+  cleaningTotal: number;
   hasFattening: boolean;
   hasFish: boolean;
   hasDuck: boolean;
@@ -269,6 +273,8 @@ export function calculateSadatControlReport(
       fishFormulas: [],
       duckFormulas: [],
       petsFormulas: [],
+      cleaningFormulas: [],
+      cleaningTotal: 0,
       hasFattening: false,
       hasFish: false,
       hasDuck: false,
@@ -302,6 +308,8 @@ export function calculateSadatControlReport(
       : actualColIndex;
 
   const formulaMetaMap = new Map<string, SadatFormulaColumn>();
+  const cleaningMap = new Map<string, SadatFormulaColumn>();
+  let cleaningTotal = 0;
   const rowMap = new Map<string, SadatMatrixRow>();
 
   const overrides = loadStoredDriveOverrides();
@@ -343,7 +351,9 @@ export function calculateSadatControlReport(
     let itemType: ItemType = classifyFormulaItemType(rawFormula);
     if (itemTypeColIdx !== -1) {
       const tVal = (row[itemTypeColIdx] ?? '').toString().trim();
-      if (tVal === 'سمك' || tVal.includes('سمك')) {
+      if (tVal === 'تنظيف' || isCleaningName(tVal)) {
+        itemType = 'تنظيف';
+      } else if (tVal === 'سمك' || tVal.includes('سمك')) {
         itemType = 'سمك';
       } else if (tVal === 'تسمين' || tVal.includes('تسمين')) {
         itemType = 'تسمين';
@@ -367,6 +377,19 @@ export function calculateSadatControlReport(
 
     const rawQty = chosenColIdx !== -1 ? parseNumericCell(row[chosenColIdx]) : 0;
     const qty = divisor > 0 ? rawQty / divisor : rawQty;
+
+    // Cleaning groups are their own category: counted separately, never mixed into the matrix / totals
+    if (itemType === 'تنظيف') {
+      cleaningTotal += qty;
+      let cCol = cleaningMap.get(rawFormula);
+      if (!cCol) {
+        cCol = { key: rawFormula, label: rawFormula, itemType: 'تنظيف', productCode, columnTotal: 0 };
+        cleaningMap.set(rawFormula, cCol);
+      }
+      cCol.columnTotal += qty;
+      if (!cCol.productCode && productCode) cCol.productCode = productCode;
+      continue;
+    }
 
     let fCol = formulaMetaMap.get(rawFormula);
     if (!fCol) {
@@ -462,6 +485,8 @@ export function calculateSadatControlReport(
     fishFormulas,
     duckFormulas,
     petsFormulas,
+    cleaningFormulas: Array.from(cleaningMap.values()).sort(byLabel),
+    cleaningTotal,
     hasFattening: fatteningFormulas.length > 0,
     hasFish: fishFormulas.length > 0,
     hasDuck: duckFormulas.length > 0,

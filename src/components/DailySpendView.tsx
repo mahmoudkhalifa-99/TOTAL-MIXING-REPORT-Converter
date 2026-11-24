@@ -155,9 +155,7 @@ export const DailySpendView: React.FC<DailySpendViewProps> = ({ sheet, fileName,
             acc + rep.rows.filter((r) => r.isWater).reduce((a, r) => a + (r.formulaValues[f.key] || 0), 0),
           0
         );
-      const cleaningExcluded = allFormulas
-        .filter((f) => isCleaning(f.label))
-        .reduce((acc, f) => acc + rep.rows.reduce((a, r) => a + (r.formulaValues[f.key] || 0), 0), 0);
+      const cleaningExcluded = rep.cleaningTotal || 0;
 
       return {
         totals: [

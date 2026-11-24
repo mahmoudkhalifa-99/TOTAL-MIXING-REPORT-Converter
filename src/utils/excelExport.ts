@@ -126,7 +126,7 @@ export function exportToExcel(
       ]);
 
       // Calculate totals for each category
-      const categories = ['سمك', 'تسمين', 'بط', 'اليف'] as const;
+      const categories = ['سمك', 'تسمين', 'بط', 'اليف', 'تنظيف'] as const;
       const typeCol = sheetWithType.headers.findIndex((h) => /نوع الصنف|item type|category/i.test(h));
       const targetCol = sheetWithType.headers.findIndex((h) => /target|المستهدف/i.test(h));
       const actualCol = sheetWithType.headers.findIndex((h) => /actual|الفعلي/i.test(h));
@@ -140,6 +140,7 @@ export function exportToExcel(
         'تسمين': { label: '🌾 تسمين (Broiler)', desc: 'الأصناف التي تحتوي تركيبتها على GR, FN, ST, SS' },
         'بط': { label: '🦆 بط (Duck)', desc: 'الأصناف التي تحتوي تركيبتها على Duck' },
         'اليف': { label: '🐾 أليف (Pets)', desc: 'كافة الأصناف والخلطات الأخرى' },
+        'تنظيف': { label: '🧹 Cleaning (تنظيف)', desc: 'مجموعات التنظيف - غير مشمولة بالإجمالي الكلي' },
       };
 
       const catSums: Record<string, { count: number; target: number; actual: number }> = {
@@ -147,13 +148,14 @@ export function exportToExcel(
         'تسمين': { count: 0, target: 0, actual: 0 },
         'بط': { count: 0, target: 0, actual: 0 },
         'اليف': { count: 0, target: 0, actual: 0 },
+        'تنظيف': { count: 0, target: 0, actual: 0 },
       };
 
       sheetWithType.rows.forEach((row) => {
         let cat = 'اليف';
         if (typeCol !== -1) {
           const val = (row[typeCol] ?? '').toString().trim();
-          if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف') {
+          if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف' || val === 'تنظيف') {
             cat = val;
           }
         }
@@ -164,9 +166,12 @@ export function exportToExcel(
         catSums[cat].target += tVal;
         catSums[cat].actual += aVal;
 
-        grandCount++;
-        grandTarget += tVal;
-        grandActual += aVal;
+        // Cleaning is reported on its own line and is not part of the grand total
+        if (cat !== 'تنظيف') {
+          grandCount++;
+          grandTarget += tVal;
+          grandActual += aVal;
+        }
       });
 
       categories.forEach((catKey) => {

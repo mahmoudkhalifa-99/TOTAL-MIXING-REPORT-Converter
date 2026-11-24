@@ -167,11 +167,12 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
       'تسمين': 0,
       'بط': 0,
       'اليف': 0,
+      'تنظيف': 0,
     };
 
     currentSheet.rows.forEach((row) => {
       const val = (row[itemTypeColIndex] ?? '').toString().trim();
-      if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف') {
+      if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف' || val === 'تنظيف') {
         counts[val]++;
       } else if (val) {
         counts['اليف']++;
@@ -293,6 +294,12 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
         'اليف',
         totalsSummary.categories['اليف'].targetSum,
         totalsSummary.categories['اليف'].actualSum
+      ),
+      makeSubtotalRow(
+        '🧹 Cleaning (تنظيف) - غير مشمول بالإجمالي الكلي',
+        'تنظيف',
+        totalsSummary.categories['تنظيف'].targetSum,
+        totalsSummary.categories['تنظيف'].actualSum
       ),
       makeSubtotalRow(
         '⭐ الإجمالي الكلي للأربعة (Grand Total)',
@@ -1336,6 +1343,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                                     <option value="سمك">🐟 سمك</option>
                                     <option value="بط">🦆 بط</option>
                                     <option value="اليف">🐾 اليف</option>
+                                    <option value="تنظيف">🧹 تنظيف (Cleaning)</option>
                                   </select>
                                 ) : (
                                   <input
@@ -1406,7 +1414,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
                 {/* Built-in Category Subtotal Rows for the 4 categories (سمك، تسمين، بط، أليف) */}
                 {totalsSummary.hasItemTypeColumn && !isTotalsRowAppended && (
                   <>
-                    {(['سمك', 'تسمين', 'بط', 'اليف'] as const).map((catKey) => {
+                    {(['سمك', 'تسمين', 'بط', 'اليف', 'تنظيف'] as const).map((catKey) => {
                       const cat = totalsSummary.categories[catKey];
                       const targetIdx = totalsSummary.targetColIndex;
                       const actualIdx = totalsSummary.actualColIndex;

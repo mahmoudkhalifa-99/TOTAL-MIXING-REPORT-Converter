@@ -46,6 +46,7 @@ export interface OverallTotalsSummary {
     'تسمين': CategorySummaryItem;
     'بط': CategorySummaryItem;
     'اليف': CategorySummaryItem;
+    'تنظيف': CategorySummaryItem;
   };
   grandTotal: {
     count: number;
@@ -302,6 +303,18 @@ export function calculateCategoryTotals(sheet: SheetData): OverallTotalsSummary 
         progress: 'bg-teal-500',
       },
     },
+    'تنظيف': {
+      label: 'Cleaning (تنظيف)',
+      emoji: '🧹',
+      color: {
+        bg: 'bg-slate-50',
+        border: 'border-slate-300',
+        text: 'text-slate-900',
+        badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
+        ring: 'ring-slate-400',
+        progress: 'bg-slate-500',
+      },
+    },
     'اليف': {
       label: 'الأليف (أصناف أخرى)',
       emoji: '🐾',
@@ -339,6 +352,7 @@ export function calculateCategoryTotals(sheet: SheetData): OverallTotalsSummary 
     'تسمين': initialCat('تسمين'),
     'بط': initialCat('بط'),
     'اليف': initialCat('اليف'),
+    'تنظيف': initialCat('تنظيف'),
   };
 
   let grandCount = 0;
@@ -351,7 +365,7 @@ export function calculateCategoryTotals(sheet: SheetData): OverallTotalsSummary 
 
     if (itemTypeColIdx !== -1) {
       const val = (row[itemTypeColIdx] ?? '').toString().trim();
-      if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف') {
+      if (val === 'سمك' || val === 'تسمين' || val === 'بط' || val === 'اليف' || val === 'تنظيف') {
         catKey = val as ItemType;
       }
     }
@@ -363,9 +377,12 @@ export function calculateCategoryTotals(sheet: SheetData): OverallTotalsSummary 
     categories[catKey].targetSum += targetVal;
     categories[catKey].actualSum += actualVal;
 
-    grandCount += 1;
-    grandTargetSum += targetVal;
-    grandActualSum += actualVal;
+    // Cleaning has its own card and is NOT part of the four-type grand total
+    if (catKey !== 'تنظيف') {
+      grandCount += 1;
+      grandTargetSum += targetVal;
+      grandActualSum += actualVal;
+    }
 
     // Collect sample item info (product, ingredient, code)
     if (categories[catKey].sampleItems.length < 8) {
@@ -380,7 +397,7 @@ export function calculateCategoryTotals(sheet: SheetData): OverallTotalsSummary 
   });
 
   // Calculate percentages and variances
-  const catKeys: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف'];
+  const catKeys: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف', 'تنظيف'];
   catKeys.forEach((k) => {
     const item = categories[k];
     item.variance = item.actualSum - item.targetSum;
@@ -433,11 +450,13 @@ export function generateTotalsReportText(
     `━━━━━━━━━━━━━━━━━━━━━━━━━`,
   ];
 
-  const order: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف'];
+  const order: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف', 'تنظيف'];
 
   order.forEach((k) => {
     const cat = categories[k];
-    lines.push(`${cat.emoji} *إجمالي ${k} (${cat.count} صنف):*`);
+    lines.push(
+      `${cat.emoji} *إجمالي ${k === 'تنظيف' ? 'Cleaning (تنظيف) - غير مشمول بالإجمالي الكلي' : k} (${cat.count} صنف):*`
+    );
     if (actualColName) {
       lines.push(`   • الفعلي (${actualColName}): ${formatWeight(cat.actualSum, weightUnit)}`);
     }

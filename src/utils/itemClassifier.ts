@@ -1,6 +1,11 @@
 import { SheetData, ExtractedDocument } from '../types/converter';
 
-export type ItemType = 'تسمين' | 'سمك' | 'بط' | 'اليف';
+export type ItemType = 'تسمين' | 'سمك' | 'بط' | 'اليف' | 'تنظيف';
+
+/** Any formula/group whose name contains "Cleaning" (or تنظيف) is its own category, never fish/pets/etc. */
+export function isCleaningName(text: any): boolean {
+  return /clean|تنظيف/i.test((text ?? '').toString());
+}
 
 /**
  * Classifies an item based on formula name (اسم التركيبة) according to user rules:
@@ -13,6 +18,11 @@ export function classifyFormulaItemType(formulaText: any): ItemType {
   if (formulaText === null || formulaText === undefined) return 'اليف';
   const text = formulaText.toString().trim();
   if (!text) return 'اليف';
+
+  // 0. Cleaning groups (e.g. "Cleaning", "Cleaning Aqua") -> تنظيف, checked FIRST so they never fall into another category
+  if (isCleaningName(text)) {
+    return 'تنظيف';
+  }
 
   // 1. Tilapia rule -> سمك
   if (/tilapia|aqua|\bfish\b|بلطي|أسماك|سمك/i.test(text)) {
@@ -162,7 +172,7 @@ export function ensureItemTypeColumn(sheet: SheetData, documentContext?: Partial
         if (c === existingColIndex) continue;
         const val = (row[c] ?? '').toString();
         // check if this cell has keywords
-        if (/tilapia|بلطي|duck|بط|broiler|تسمين/i.test(val) || /(?:^|[\s\-_/])(GR|FN|ST|SS)(?:[\s\-_/]|$|[0-9])/i.test(val)) {
+        if (/clean|تنظيف|tilapia|بلطي|duck|بط|broiler|تسمين/i.test(val) || /(?:^|[\s\-_/])(GR|FN|ST|SS)(?:[\s\-_/]|$|[0-9])/i.test(val)) {
           formulaText = val;
           break;
         }

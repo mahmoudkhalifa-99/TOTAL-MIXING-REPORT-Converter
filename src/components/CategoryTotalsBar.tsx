@@ -52,7 +52,8 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
     }
   };
 
-  const categoryOrder: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف'];
+  // Cleaning is shown last (CSS order) and is NOT part of the four-type grand total
+  const categoryOrder: ItemType[] = ['سمك', 'تسمين', 'بط', 'اليف', 'تنظيف'];
 
   return (
     <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-xl shadow-md border border-slate-700/60 overflow-hidden my-3 animate-in fade-in duration-200">
@@ -70,7 +71,7 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
               </span>
             </h4>
             <p className="text-[11px] text-slate-300 mt-0.5">
-              مجموع الأوزان الفعلية والمستهدفة مع احتساب صافي الفروقات ونسب المساهمة
+              مجموع الأوزان الفعلية والمستهدفة مع احتساب صافي الفروقات ونسب المساهمة · Cleaning بطاقة مستقلة غير داخلة في الإجمالي الكلي
             </p>
           </div>
         </div>
@@ -123,7 +124,7 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
       {/* Expanded Totals Cards Grid */}
       {isExpanded && (
         <div className="p-4 sm:p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
             {/* 1. Fish Card */}
             {categoryOrder.map((catKey) => {
               const cat = categories[catKey];
@@ -136,6 +137,8 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
                   ? 'bg-gradient-to-b from-amber-950/80 to-slate-900 border-amber-500/40'
                   : catKey === 'بط'
                   ? 'bg-gradient-to-b from-teal-950/80 to-slate-900 border-teal-500/40'
+                  : catKey === 'تنظيف'
+                  ? 'bg-gradient-to-b from-zinc-800/80 to-slate-900 border-zinc-500/40'
                   : 'bg-gradient-to-b from-purple-950/80 to-slate-900 border-purple-500/40';
 
               const accentColor =
@@ -145,6 +148,8 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
                   ? 'text-amber-300'
                   : catKey === 'بط'
                   ? 'text-teal-300'
+                  : catKey === 'تنظيف'
+                  ? 'text-zinc-300'
                   : 'text-purple-300';
 
               const barColor =
@@ -154,6 +159,8 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
                   ? 'bg-amber-500'
                   : catKey === 'بط'
                   ? 'bg-teal-500'
+                  : catKey === 'تنظيف'
+                  ? 'bg-zinc-400'
                   : 'bg-purple-500';
 
               return (
@@ -162,7 +169,7 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
                   onClick={() =>
                     onSelectCategoryFilter(isSelected ? 'all' : catKey)
                   }
-                  className={`rounded-xl border p-3.5 transition-all cursor-pointer flex flex-col justify-between relative group ${bgCard} ${
+                  className={`rounded-xl border p-3.5 transition-all cursor-pointer flex flex-col justify-between relative group ${catKey === 'تنظيف' ? 'lg:order-last' : ''} ${bgCard} ${
                     isSelected
                       ? 'ring-2 ring-emerald-400 shadow-lg scale-[1.02]'
                       : 'hover:border-slate-500 hover:scale-[1.01]'
@@ -174,7 +181,7 @@ export const CategoryTotalsBar: React.FC<CategoryTotalsBarProps> = ({
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold flex items-center gap-1.5 text-white">
                         <span className="text-base">{cat.emoji}</span>
-                        <span>إجمالي {catKey}</span>
+                        <span>{catKey === 'تنظيف' ? 'Cleaning (تنظيف)' : `إجمالي ${catKey}`}</span>
                       </span>
                       <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700">
                         {cat.count} صنف

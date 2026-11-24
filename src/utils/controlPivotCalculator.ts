@@ -38,6 +38,8 @@ export interface ControlPivotSummary {
   actualColName: string | null;
   targetColName: string | null;
   metricUsed: 'actual' | 'target';
+  /** Total of Cleaning groups, kept OUT of rows/totals (own category) */
+  cleaningTotal?: number;
 }
 
 function isSummaryOrTotalRow(row: any[]): boolean {
@@ -275,6 +277,7 @@ export function calculateControlPivot(
       actualColName: null,
       targetColName: null,
       metricUsed: metric,
+      cleaningTotal: 0,
     };
   }
 
@@ -296,6 +299,7 @@ export function calculateControlPivot(
       : actualColIndex;
 
   const map = new Map<string, ControlPivotRow>();
+  let cleaningTotal = 0;
 
   for (const row of sheet.rows) {
     if (!Array.isArray(row) || isSummaryOrTotalRow(row)) continue;
@@ -331,7 +335,7 @@ export function calculateControlPivot(
     let itemType: ItemType = 'اليف';
     if (itemTypeColIdx !== -1) {
       const tVal = (row[itemTypeColIdx] ?? '').toString().trim();
-      if (tVal === 'سمك' || tVal === 'تسمين' || tVal === 'بط' || tVal === 'اليف') {
+      if (tVal === 'سمك' || tVal === 'تسمين' || tVal === 'بط' || tVal === 'اليف' || tVal === 'تنظيف') {
         itemType = tVal;
       }
     }
@@ -339,6 +343,12 @@ export function calculateControlPivot(
     // Parse quantity
     const rawQty = chosenColIdx !== -1 ? parseNumericCell(row[chosenColIdx]) : 0;
     const qty = divisor > 0 ? rawQty / divisor : rawQty;
+
+    // Cleaning groups are their own category: counted apart, never mixed into the item totals
+    if (itemType === 'تنظيف') {
+      cleaningTotal += qty;
+      continue;
+    }
 
     // Group key: include BOTH normalized code and normalized name so distinct items
     // sharing a JDE code (e.g. Corn vs Corn B [11342], Local soya 46% vs SOYA 46% B [913686]) stay separate.
@@ -428,6 +438,7 @@ export function calculateControlPivot(
     actualColName,
     targetColName,
     metricUsed: metric,
+    cleaningTotal,
   };
 }
 
